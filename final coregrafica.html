@@ -1,0 +1,475 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>Atlas de la Comisión Corográfica de Colombia (1850-1859)</title>
+
+  <!-- 1. Carga la base de datos de láminas unificadas -->
+  <script src="laminas_completas.js"></script>
+
+  <!-- 2. Librerías de mapas y agrupación de puntos -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Georgia', serif;
+      background-color: #f5eedb;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      color: #332211;
+    }
+
+    header {
+      background-color: #2e1d11;
+      color: #ecdcc1;
+      padding: 10px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 3px solid #8c5b2c;
+      gap: 12px;
+    }
+
+    .header-titulo h1 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .header-titulo p {
+      margin: 2px 0 0 0;
+      font-size: 0.8rem;
+      font-style: italic;
+      color: #d1b896;
+    }
+
+    .controles {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.85rem;
+    }
+
+    select, button {
+      font-family: 'Georgia', serif;
+      background: #8c5b2c;
+      color: white;
+      border: 1px solid #d4b28c;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    select:hover, button:hover {
+      background: #a97039;
+    }
+
+    /* Estilo del botón destacado para el Atlas del Banco de la República */
+    .btn-atlas {
+      background: #4a210d;
+      color: #ffd89b !important;
+      border: 1px solid #ffd89b;
+      padding: 6px 12px;
+      border-radius: 4px;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: bold;
+      transition: all 0.2s ease;
+      display: inline-block;
+    }
+
+    .btn-atlas:hover {
+      background: #7a3a1e;
+      color: #ffffff !important;
+      border-color: #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
+    #contador {
+      font-weight: bold;
+      color: #ffd89b;
+      font-size: 0.85rem;
+    }
+
+    #map {
+      flex: 1;
+      width: 100%;
+    }
+
+    /* Diseño editorial de los recuadros emergentes */
+    .popup-laminas {
+      max-width: 295px;
+      font-size: 0.85rem;
+      line-height: 1.35;
+    }
+
+    .popup-laminas h3 {
+      margin: 0 0 4px 0;
+      font-size: 1.05rem;
+      color: #632b13;
+      border-bottom: 1px solid #d8be9b;
+      padding-bottom: 3px;
+    }
+
+    .popup-laminas .metadatos {
+      font-size: 0.75rem;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .popup-laminas a.enlace-img {
+      display: block;
+      cursor: zoom-in;
+    }
+
+    .popup-laminas img {
+      width: 100%;
+      height: 165px;
+      object-fit: cover;
+      border: 1px solid #8c5b2c;
+      margin: 4px 0;
+      border-radius: 3px;
+      background-color: #eee;
+    }
+
+    .popup-laminas blockquote {
+      margin: 6px 0;
+      padding-left: 8px;
+      border-left: 3px solid #8c5b2c;
+      font-style: italic;
+      color: #2b1f14;
+      background: #fbf6ec;
+      padding-top: 3px;
+      padding-bottom: 3px;
+      max-height: 85px;
+      overflow-y: auto;
+    }
+
+    .btn-bnc {
+      display: block;
+      text-align: center;
+      background: #632b13;
+      color: #fff !important;
+      padding: 6px;
+      text-decoration: none;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+
+    .btn-bnc:hover {
+      background: #8c3e1c;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-titulo">
+      <h1>Atlas de la Comisión Corográfica (1850-1859)</h1>
+      <p>Cartografía histórica de Agustín Codazzi, Carmelo Fernández, Henry Price y Manuel María Paz</p>
+    </div>
+    <div class="controles">
+      <label for="filtroPintor">Filtrar por pintor:</label>
+      <select id="filtroPintor" onchange="aplicarFiltro()">
+        <option value="todos">Todos los pintores</option>
+        <option value="Carmelo Fernández">Carmelo Fernández</option>
+        <option value="Henry Price">Henry Price</option>
+        <option value="Manuel María Paz">Manuel María Paz</option>
+      </select>
+      <span id="contador"></span>
+
+      <!-- Enlace directo al Atlas Geográfico e Histórico en la Biblioteca Luis Ángel Arango -->
+      <a class="btn-atlas" href="https://babel.banrepcultural.org/digital/collection/p17054coll13/id/856/rec/5" target="_blank" title="Abrir el Atlas Geográfico e Histórico oficial en la Biblioteca Virtual del Banco de la República">
+        📖 Ver Atlas Histórico Original (Banrep)
+      </a>
+
+      <button onclick="descargarHTML()">📥 Descargar HTML</button>
+    </div>
+  </header>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <script>
+    // 1. Inicializar mapa enfocado en Colombia
+    const map = L.map('map').setView([5.0, -74.2], 6);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 16,
+      attribution: 'Esri NatGeo | Comisión Corográfica | Biblioteca Nacional | Banrep'
+    }).addTo(map);
+
+    const clusterGroup = L.markerClusterGroup({
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true
+    });
+
+    // 2. DICCIONARIO GEOGRÁFICO DE ALTA PRECISIÓN (De lo específico a lo general)
+    const coordenadas = {
+      // --- ACCIDENTES TOPOGRÁFICOS Y SITIOS PUNTUALES ---
+      "furatena": [5.6083, -74.1528],                 // Río Minero / Peña de Furatena
+      "rio minero": [5.6083, -74.1528],
+      "cabuya de simacota": [6.4442, -73.3406],       // Tarabita sobre el río Suárez
+      "sarabita": [6.4442, -73.3406],
+      "saravita": [6.4442, -73.3406],
+      "simacota": [6.4442, -73.3406],
+      "yarumito": [7.0833, -73.1333],                 // Campamento en la meseta de Soto
+      "cachiri": [7.4725, -73.0603],                  // Páramo y casa de Cachirí (Suratá)
+      "saboya": [5.7000, -73.7667],                   // Piedra pintada de Saboyá
+      "rosario de cucuta": [7.8344, -72.4506],        // Templo histórico Congreso de Cúcuta
+      "zulia": [7.9333, -72.6000],                    // Puente colgante sobre el Zulia
+      "laguna de siecha": [4.7525, -73.8569],         // Páramo de Chingaza / Guasca
+      "siecha": [4.7525, -73.8569],
+      "laguna de guatavita": [4.9781, -73.7744],      // Laguna sagrada
+      "guatavita": [4.9781, -73.7744],
+      "salto del tequendama": [4.5847, -74.2989],
+      "tequendama": [4.5847, -74.2989],
+      "puente del comun": [4.8622, -74.0328],         // Chía / Río Bogotá
+      "rio cuja": [4.3375, -74.3644],                 // Fusagasugá
+      "facatativa": [4.8142, -74.3542],               // Piedras del Tunjo
+      "ferreria de pacho": [5.1333, -74.1667],        // Primera siderúrgica
+      "pacho": [5.1333, -74.1667],
+      "pandi": [4.1908, -74.4883],                    // Puente natural de Pandi
+      "cipaquira": [5.0264, -74.0044],                // Minas de sal gema
+      "zipaquira": [5.0264, -74.0044],
+      "san victorino": [4.6028, -74.0789],
+      "accion de boyaca": [5.4500, -73.3667],         // Campo de Boyacá
+      "casa de boyaca": [5.4500, -73.3667],
+      "gameza": [5.8000, -72.8000],                   // Piedra grabada de Gámeza
+      "nevado de chita": [6.4667, -72.4167],          // Sierra Nevada de Güicán / El Cocuy
+      "guican": [6.4667, -72.4167],
+      "penol de guatape": [6.2208, -75.1792],         // Monolito del Peñol
+      "guatape": [6.2208, -75.1792],
+      "penol de entrerrios": [6.5650, -75.5160],      // Piedra de Entrerríos
+      "cascada de guadalupe": [6.8122, -75.2411],     // Salto de Guadalupe
+      "rio guadalupe": [6.8122, -75.2411],
+      "angostura de la candelaria": [6.8122, -75.2411],
+      "confluencia de rio grande y de rio chico": [6.5833, -75.4500],
+      "buritica": [6.7167, -75.9167],                 // Minas indígenas de oro
+      "santa rosa de osos": [6.6478, -75.4608],
+      "sonson": [5.7100, -75.3100],
+      "rionegro": [6.1552, -75.3737],
+      "rio negro": [6.1552, -75.3737],
+      "minas de plata de santa ana": [5.1800, -74.9000], // Falan
+      "santa ana": [5.1800, -74.9000],
+      "ambalema": [4.7878, -74.7644],                 // Factoría sobre el Magdalena
+      "manizales": [5.0689, -75.5174],
+      "ruiz": [4.8953, -75.3197],                     // Nevado del Ruiz
+      "tolima": [4.6592, -75.3314],                   // Nevado del Tolima
+      "herveo": [5.0833, -75.1833],
+      "volcanes activos de cumbal i chiles": [0.9167, -77.7833],
+      "cumbal": [0.9167, -77.7833],
+      "chiles": [0.8167, -77.8500],
+      "capilla de la laja": [0.8053, -77.5861],       // Cañón de Las Lajas
+      "puente natural de rumichaca": [0.8142, -77.6622], // Frontera Rumichaca
+      "laguna verde": [1.0833, -77.7167],             // Cráter del volcán Azufral
+      "cascada del excomulgado": [1.1000, -77.6500],
+      "rio juanambu": [1.4500, -77.2000],             // Cañón de Juanambú
+      "indios de la laguna": [1.1989, -77.1706],      // Laguna de La Cocha
+      "playa de boquerones": [1.6500, -78.2000],
+      "isla gorgona": [2.9656, -78.1792],
+      "rio tapaje": [2.3500, -78.1167],
+      "barbacoas": [1.6715, -78.1398],
+      "rio vinagre": [2.3500, -76.4500],              // Cascada del río Vinagre en Puracé
+      "purace": [2.3167, -76.4000],
+      "coconuco": [2.3500, -76.5000],
+      "anambio": [2.5000, -76.5000],
+      "pansitara": [1.8833, -76.9000],
+      "patia": [2.0667, -77.0500],
+      "san agustin": [1.8822, -76.2978],              // Adoratorios arqueológicos
+      "laguna del buei": [1.9167, -76.5000],          // Nacimiento del río Magdalena
+      "puente de guadua sobre el rio de la plata": [2.3833, -75.8833],
+      "la plata": [2.3833, -75.8833],
+      "suaza": [1.9667, -75.8000],
+      "aipe": [3.2167, -75.2333],
+      "farallones de cali": [3.4167, -76.6833],
+      "cartago": [4.7464, -75.9117],
+      "lloro": [5.5097, -76.5419],                    // Venta de aguardiente en Lloró
+      "novita": [4.9547, -76.6083],
+      "camino de novita": [4.9547, -76.6083],
+      "rio ingara": [4.9753, -76.4528],
+      "rio san juan": [4.7000, -77.0000],
+      "sipi": [4.6500, -76.5000],
+      "tebada": [5.3000, -76.6000],
+      "quibdo": [5.6947, -76.6611],
+      "orocue": [4.7917, -71.3350],                   // Río Meta
+      "moreno": [5.8000, -71.9000],                   // Capital histórica de Casanare
+      "rio meta": [4.5000, -71.5000],
+      "puerto de descanse": [1.2500, -76.5000],       // Río Caquetá
+      "descanse": [1.2500, -76.5000],
+      "mocoa": [1.1528, -76.6467],
+      "andaqui": [1.4172, -75.8756],                  // Belén de los Andaquíes
+      "andaquies": [1.4172, -75.8756],
+      "correguajes": [1.2167, -75.4167],              // Río Orteguaza
+      "macaguaje": [0.7167, -75.2500],
+
+      // --- MUNICIPIOS Y CAPITALES PROVINCIALES ---
+      "ocana": [8.2386, -73.3556],
+      "pamplona": [7.3756, -72.6486],
+      "bucaramanga": [7.1193, -73.1227],
+      "soto": [7.1193, -73.1227],
+      "velez": [6.0125, -73.6739],
+      "socorro": [6.4678, -73.2608],
+      "tundama": [5.8752, -72.9818],
+      "tunja": [5.5353, -73.3678],
+      "medellin": [6.2442, -75.5812],
+      "antioquia": [6.2442, -75.5812],
+      "mariquita": [5.2078, -74.7417],
+      "pasto": [1.2136, -77.2811],
+      "tuquerres": [1.0858, -77.6186],
+      "popayan": [2.4419, -76.6063],
+      "cali": [3.4516, -76.5320],
+      "buenaventura": [3.8801, -77.0312],
+      "choco": [5.6922, -76.6581],
+      "casanare": [5.7194, -71.9961],
+      "caqueta": [1.6144, -75.6062],
+      "neiva": [2.9273, -75.2819],
+      "bogota": [4.6097, -74.0817]
+    };
+
+    // 3. FUNCIÓN DE LIMPIEZA Y GEORREFERENCIACIÓN INTELIGENTE
+    function depurarLaminas(listaBruta) {
+      return listaBruta.map(item => {
+        const textoCompleto = (item.provincia || "") + " " + (item.cita || "");
+
+        // A. Extraer título legible sin códigos técnicos del catálogo
+        let nombreLimpio = item.nombre;
+        if (!nombreLimpio || nombreLimpio.trim() === "") {
+          nombreLimpio = (item.provincia || "")
+            .replace(/^\s*\d+\.\s*—?\s*/, "")
+            .split("[")[0]
+            .split(":")[0]
+            .trim();
+        }
+
+        // B. Determinar pintor exacto
+        let pintorReal = item.pintor;
+        const textoNorm = textoCompleto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        
+        if (textoNorm.includes("fernandez") || textoNorm.includes("carmelo")) {
+          pintorReal = "Carmelo Fernández";
+        } else if (textoNorm.includes("price") || textoNorm.includes("enrique")) {
+          pintorReal = "Henry Price";
+        } else if (textoNorm.includes("paz") || textoNorm.includes("manuel maria")) {
+          pintorReal = "Manuel María Paz";
+        }
+
+        // C. Generar enlace oficial limpio en alta resolución
+        let imgLimpia = item.img;
+        const assetMatch = (item.img + " " + item.cita + " " + item.url_bnc).match(/(?:asset|thumbnail)\/(\d+)\/0/i);
+        if (assetMatch) {
+          imgLimpia = `https://catalogoenlinea.bibliotecanacional.gov.co/client/es_ES/search/asset/${assetMatch[1]}/0`;
+        }
+
+        // D. Georreferenciación de alta precisión (evalúa sitios puntuales primero)
+        let coordsReales = [4.5709, -74.2973];
+        for (let sitio in coordenadas) {
+          if (textoNorm.includes(sitio)) {
+            coordsReales = coordenadas[sitio];
+            break;
+          }
+        }
+
+        // E. Extraer lugar/provincia para los metadatos
+        let lugarProvincia = "Colombia";
+        if (item.provincia) {
+          const partes = item.provincia.split(":");
+          if (partes.length > 1) {
+            lugarProvincia = partes[partes.length - 1].split("/")[0].trim();
+          } else {
+            lugarProvincia = item.provincia.replace(/^\s*\d+\.\s*—?\s*/, "").split("/")[0].trim();
+          }
+        }
+
+        return {
+          nombre: nombreLimpio,
+          pintor: pintorReal,
+          ano: item.ano || 1853,
+          provincia: lugarProvincia,
+          coords: coordsReales,
+          img: imgLimpia,
+          cita: item.cita ? item.cita.split("—")[0].replace(/^\s*\d+\.\s*—?\s*/, "").trim() : nombreLimpio,
+          url_bnc: imgLimpia
+        };
+      });
+    }
+
+    // 4. Renderizar las láminas en el mapa interactivo
+    let laminasProcesadas = [];
+
+    function renderizarPuntos(datos) {
+      clusterGroup.clearLayers();
+
+      datos.forEach(item => {
+        const popupHtml = `
+          <div class="popup-laminas">
+            <h3>${item.nombre}</h3>
+            <div class="metadatos">
+              <b>Artista:</b> ${item.pintor} (${item.ano})<br>
+              <b>Lugar:</b> ${item.provincia}
+            </div>
+
+            <a class="enlace-img" href="${item.img}" target="_blank" title="Haz clic para ver en tamaño completo">
+              <img src="${item.img}" alt="${item.nombre}">
+            </a>
+
+            <blockquote>${item.cita}</blockquote>
+
+            <a class="btn-bnc" href="${item.url_bnc}" target="_blank">
+              🔎 Ver lámina oficial en la BNC
+            </a>
+          </div>
+        `;
+
+        const marcador = L.marker(item.coords).bindPopup(popupHtml);
+        clusterGroup.addLayer(marcador);
+      });
+
+      map.addLayer(clusterGroup);
+      document.getElementById('contador').textContent = `Láminas visibles: ${datos.length}`;
+    }
+
+    // 5. Filtrar por pintor
+    function aplicarFiltro() {
+      const seleccion = document.getElementById('filtroPintor').value;
+      if (seleccion === "todos") {
+        renderizarPuntos(laminasProcesadas);
+      } else {
+        const filtradas = laminasProcesadas.filter(l => l.pintor === seleccion);
+        renderizarPuntos(filtradas);
+      }
+    }
+
+    // 6. Carga inicial y auto-reparación
+    if (typeof coleccionLaminas !== 'undefined' && Array.isArray(coleccionLaminas)) {
+      laminasProcesadas = depurarLaminas(coleccionLaminas);
+      renderizarPuntos(laminasProcesadas);
+    } else {
+      alert("⚠️ Aviso:\nNo se encontró la variable 'coleccionLaminas'. Asegúrate de que 'laminas_completas.js' esté guardado en la misma carpeta.");
+    }
+
+    // 7. Descargar copia local del HTML
+    function descargarHTML() {
+      const contenido = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+      const blob = new Blob([contenido], { type: "text/html;charset=utf-8" });
+      const enlace = document.createElement("a");
+      enlace.href = URL.createObjectURL(blob);
+      enlace.download = "atlas_comision_corografica_colombia.html";
+      enlace.click();
+    }
+  </script>
+</body>
+</html>
